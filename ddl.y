@@ -2,21 +2,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>  // 添加这个头文件
 
-void yyerror(const char *s);
+void yyerror(const YYLTYPE *yylloc, const char *s, ...) ;
 int yylex(void);
 
 %}
+
+%locations
 
 %union {
     char *str;
     int num;
 }
 
-%token CREATE PROPERTY GRAPH OPTIONS VERTEX TABLES EDGE AS KEY LABEL PROPERTIES REFERENCES SOURCE DESTINATION DROP BASE ELEMENT ALL EXCEPT CALL IDENTIFIER NUMBER NO ARE COLUMNS ARROW
+%token <str> IDENTIFIER
+%token <num> NUMBER
+%token CREATE PROPERTY GRAPH OPTIONS VERTEX TABLES EDGE AS KEY LABEL PROPERTIES REFERENCES SOURCE DESTINATION DROP BASE ELEMENT ALL EXCEPT CALL NO ARE COLUMNS ARROW
 
-%type <str> IDENTIFIER
-%type <num> NUMBER
+%type <str> identifier_list exp_as_var exp_as_var_list option option_list label_clause properties_clause except_columns source_vertex_table destination_vertex_table as_table_alias
 
 %%
 
@@ -67,7 +71,7 @@ edge_table:
 
 as_table_alias:
     /* empty */
-    | AS IDENTIFIER
+    | AS IDENTIFIER { $$ = $2; }
     ;
 
 key_clause:
@@ -84,11 +88,11 @@ label_and_properties_clause:
     ;
 
 label_clause:
-    LABEL IDENTIFIER
+    LABEL IDENTIFIER { $$ = $2; }
     ;
 
 properties_clause:
-    PROPERTIES '(' exp_as_var_list ')'
+    PROPERTIES '(' exp_as_var_list ')' { $$ = $3; }
     | NO PROPERTIES
     | PROPERTIES ARE ALL COLUMNS except_columns
     ;
@@ -104,7 +108,7 @@ exp_as_var:
 
 except_columns:
     /* empty */
-    | EXCEPT '(' identifier_list ')'
+    | EXCEPT '(' identifier_list ')' { $$ = $3; }
     ;
 
 source_vertex_table:
@@ -149,9 +153,18 @@ exp:
 
 %%
 
-void yyerror(const char *s) {
-    fprintf(stderr, "Error: %s\n", s);
+// 更新 yyerror 函数以接受位置信息并打印错误所在的行号。
+void yyerror(const YYLTYPE *yylloc, const char *s, ...) {
+    va_list ap;
+    va_start(ap, s);
+
+    fprintf(stderr, "Error at line %d: ", yylloc->first_line);
+    vfprintf(stderr, s, ap);
+    fprintf(stderr, "\n");
+
+    va_end(ap);
 }
+
 
 int main(void) {
     return yyparse();
